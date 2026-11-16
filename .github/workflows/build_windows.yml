@@ -19,12 +19,11 @@ jobs:
           Remove-Item -Recurse -Force lib
           flutter create --platforms=windows --org ru.primorye --project-name primorye_admin .
           flutter pub add http
-          python -c "
-          import os
-          s = open(os.environ['TEMP'] + '/main_backup.dart', encoding='utf-8').read()
-          s = s.replace(\"import 'dart:html' as html;\", \"import 'package:http/http.dart' as http;\")
-          s = s.replace('html.HttpRequest.request(', '_desktopHttp(')
-          helper = '''
+          $code = Get-Content -Raw -Encoding UTF8 $env:TEMP/main_backup.dart
+          $code = $code.Replace("import 'dart:html' as html;", "import 'package:http/http.dart' as http;")
+          $code = $code.Replace("html.HttpRequest.request(", "_desktopHttp(")
+          $helper = @'
+
           class _FakeResp { final int status; final String? responseText; _FakeResp(this.status, this.responseText); }
           Future<_FakeResp> _desktopHttp(String url, {String method = 'GET', Map<String, String>? requestHeaders, String? sendData}) async {
             final uri = Uri.parse(url);
@@ -34,9 +33,8 @@ jobs:
             else r = await http.get(uri, headers: requestHeaders);
             return _FakeResp(r.statusCode, r.body);
           }
-          '''
-          open('lib/main.dart', 'w', encoding='utf-8').write(s + '\n' + helper)
-          "
+          '@
+          Set-Content -Path lib/main.dart -Value ($code + $helper) -Encoding UTF8
           flutter pub get
           flutter build windows --release
       - name: Upload Windows EXE
