@@ -18,7 +18,7 @@ jobs:
           Copy-Item lib/main.dart $env:TEMP/main_backup.dart
           Remove-Item -Recurse -Force lib
           flutter create --platforms=windows --org ru.primorye --project-name primorye_admin .
-          flutter pub add http
+          flutter pub add http flutter_map latlong2
           $code = Get-Content -Raw -Encoding UTF8 $env:TEMP/main_backup.dart
           $code = $code.Replace("import 'dart:html' as html;", "import 'package:http/http.dart' as http;")
           $code = $code.Replace("html.HttpRequest.request(", "_desktopHttp(")
@@ -37,8 +37,7 @@ jobs:
           Set-Content -Path lib/main.dart -Value ($code + $helper) -Encoding UTF8
           flutter pub get
           flutter build windows --release
-      - name: Upload Windows EXE
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: Primorye-Admin-Windows-EXE
-          path: build/windows/x64/runner/Release/
+          path: build/windows/x64/runner/Release
