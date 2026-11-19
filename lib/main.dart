@@ -222,7 +222,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
               ],
             ),
           ),
-          Expanded(padding: const EdgeInsets.all(20), child: _buildTab()),
+                    Expanded(child: Padding(padding: const EdgeInsets.all(20), child: _buildTab())),
         ],
       ),
     );
