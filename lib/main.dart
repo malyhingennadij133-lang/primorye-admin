@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'dart:html' as html;
+import 'dart:io';
 import 'package:flutter/material.dart';
 
-const String sbUrl = 'https://supabase.co';
+const String sbHost = 'irwfyswmawiamejjmsjg.supabase.co';
 const String sbKey = 'sb_publishable_q8Q4n2v9X7kLm3pR6tW1yZ_primorye_anon_key';
 
 void main() => runApp(const PrimoryeAdminApp());
@@ -67,19 +67,29 @@ class _AdminDashboardState extends State<AdminDashboard> {
     _syncAll();
   }
 
-  Map<String, String> get _headers => {
-    'apikey': sbKey,
-    'Authorization': 'Bearer $sbKey',
-    'Content-Type': 'application/json',
-    'Prefer': 'return=representation',
-  };
+  Future<String> _httpCall(String method, String path, {String? body}) async {
+    final client = HttpClient();
+    try {
+      final req = await client.openUrl(method, Uri.parse('https://$sbHost/rest/v1/$path'));
+      req.headers.set('apikey', sbKey);
+      req.headers.set('Authorization', 'Bearer $sbKey');
+      req.headers.set('Content-Type', 'application/json');
+      req.headers.set('Prefer', 'return=representation');
+      if (body != null) req.add(utf8.encode(body));
+      final res = await req.close();
+      return await res.transform(utf8.decoder).join();
+    } catch (_) {
+      return '[]';
+    } finally {
+      client.close();
+    }
+  }
 
   Future<List<Map<String, dynamic>>> _getTable(String query) async {
     try {
-      final req = await html.HttpRequest.request('$sbUrl/rest/v1/$query', method: 'GET', requestHeaders: _headers);
-      if (req.status == 200 && req.responseText != null) {
-        return List<Map<String, dynamic>>.from(jsonDecode(req.responseText!));
-      }
+      final raw = await _httpCall('GET', query);
+      final parsed = jsonDecode(raw);
+      if (parsed is List) return List<Map<String, dynamic>>.from(parsed);
     } catch (_) {}
     return [];
   }
@@ -113,7 +123,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       'sort_order': _services.length + 1,
       'active': true,
     });
-    await html.HttpRequest.request('$sbUrl/rest/v1/services', method: 'POST', requestHeaders: _headers, sendData: body);
+    await _httpCall('POST', 'services', body: body);
     _newSvcTitle.clear();
     _newSvcParent.clear();
     await _syncAll();
@@ -127,10 +137,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final orderA = a['sort_order'] ?? (index + 1);
     final orderB = b['sort_order'] ?? (target + 1);
     if (a['id'] != null && b['id'] != null) {
-      await html.HttpRequest.request('$sbUrl/rest/v1/services?id=eq.${a['id']}',
-          method: 'PATCH', requestHeaders: _headers, sendData: jsonEncode({'sort_order': orderB}));
-      await html.HttpRequest.request('$sbUrl/rest/v1/services?id=eq.${b['id']}',
-          method: 'PATCH', requestHeaders: _headers, sendData: jsonEncode({'sort_order': orderA}));
+      await _httpCall('PATCH', 'services?id=eq.${a['id']}', body: jsonEncode({'sort_order': orderB}));
+      await _httpCall('PATCH', 'services?id=eq.${b['id']}', body: jsonEncode({'sort_order': orderA}));
       await _syncAll();
     } else {
       setState(() {
@@ -143,24 +151,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Future<void> _updateRate(Map<String, dynamic> svc, int newRate) async {
     if (svc['id'] == null) return;
-    await html.HttpRequest.request('$sbUrl/rest/v1/services?id=eq.${svc['id']}',
-        method: 'PATCH', requestHeaders: _headers, sendData: jsonEncode({'rate': newRate}));
+    await _httpCall('PATCH', 'services?id=eq.${svc['id']}', body: jsonEncode({'rate': newRate}));
     await _syncAll();
   }
 
   Future<void> _addBlacklist() async {
     final ph = _newBlPhone.text.trim();
     if (ph.isEmpty) return;
-    await html.HttpRequest.request('$sbUrl/rest/v1/blacklist',
-        method: 'POST',
-        requestHeaders: _headers,
-        sendData: jsonEncode({'phone': ph, 'reason': _newBlReason.text.trim()}));
+    await _httpCall('POST', 'blacklist', body: jsonEncode({'phone': ph, 'reason': _newBlReason.text.trim()}));
     _newBlPhone.clear();
     await _syncAll();
   }
 
   Future<void> _removeBlacklist(int id) async {
-    await html.HttpRequest.request('$sbUrl/rest/v1/blacklist?id=eq.$id', method: 'DELETE', requestHeaders: _headers);
+    await _httpCall('DELETE', 'blacklist?id=eq.$id');
     await _syncAll();
   }
   @override
@@ -493,7 +497,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           children: [
             const Text('Настройки подключения к облаку Supabase', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            Text('Адрес сервера: $sbUrl'),
+            const Text('Адрес сервера: https://supabase.co'),
             const Text('Максимальный размер бригады на одну заявку: 30 человек (автозакрытие включено)'),
           ],
         );
